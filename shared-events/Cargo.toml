@@ -1,12 +1,8 @@
 [package]
-name = "plugin"
+name = "shared-events"
 version = "0.1.0"
 edition = "2024"
 
-[lib]
-crate-type = ["cdylib"]
-
 [dependencies]
 steel-api = { path = "../steel-api" }
-shared-events = { path = "../shared-events" }
 stabby = { version = "72.1.1", features = ["libloading"] }

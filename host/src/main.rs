@@ -38,13 +38,13 @@ fn main() {
 
     // Fire server starting event
     let mut starting = ServerStartingEvent { block_count: 0 };
-    match event::fire_event(&mut starting) {
-        EventResult::Panic => {
-            eprintln!("[Host] Plugin panicked during ServerStarting event. Shutting down.");
-            return;
-        }
-        EventResult::Cancel => println!("[Host] ServerStarting event was cancelled."),
-        EventResult::Continue => {}
+    let fire_result = event::fire_event(&mut starting);
+    if fire_result.result == EventResult::Panic {
+        eprintln!("[Host] Plugin panicked during ServerStarting event. Shutting down.");
+        return;
+    }
+    if fire_result.cancelled {
+        println!("[Host] ServerStarting event was cancelled.");
     }
 
     // Simulate command execution

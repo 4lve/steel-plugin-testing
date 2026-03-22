@@ -9,8 +9,6 @@ pub use steel_api_macros::{steel_command, steel_handler, steel_plugin};
 pub use stabby::alloc::string::String as AbiString;
 pub use stabby::str::Str as AbiStr;
 
-pub const API_VERSION: u32 = 1;
-
 mod command;
 mod event;
 mod identifier;

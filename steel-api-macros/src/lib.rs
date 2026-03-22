@@ -2,11 +2,8 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{FnArg, ItemFn, Pat, parse_macro_input};
 
-/// Wraps a plugin init function with API version checking and `catch_unwind`
-/// so panics never cross the FFI boundary.
-///
-/// The generated `extern "C"` function takes `PluginContext` by value.
-/// The plugin developer's function receives `&PluginContext`.
+/// Wraps a plugin init function with `catch_unwind` so panics never
+/// cross the FFI boundary.
 ///
 /// ```ignore
 /// #[steel_plugin]
@@ -37,15 +34,6 @@ pub fn steel_plugin(_attr: TokenStream, item: TokenStream) -> TokenStream {
         pub extern "C" fn steel_plugin_init(
             __steel_ctx: steel_api::PluginContext,
         ) -> steel_api::InitResult {
-            if __steel_ctx.api_version != steel_api::API_VERSION {
-                eprintln!(
-                    "[Steel] API version mismatch: plugin compiled against v{}, host is v{}",
-                    steel_api::API_VERSION,
-                    __steel_ctx.api_version,
-                );
-                return steel_api::InitResult::Panic;
-            }
-
             match ::std::panic::catch_unwind(::std::panic::AssertUnwindSafe(|| {
                 #fn_name(&__steel_ctx);
             })) {
@@ -66,12 +54,10 @@ pub fn steel_plugin(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// Wraps an event handler with `catch_unwind` and makes it `extern "C"`.
 /// Panics are caught and returned as `EventResult::Panic`.
 ///
-/// The plugin developer writes a function taking `&mut Event`:
-///
 /// ```ignore
 /// #[steel_handler]
-/// fn on_server_starting(event: &mut ServerStartingEvent) -> EventResult {
-///     println!("Server starting with {} blocks!", event.block_count);
+/// fn on_event(event: &mut PlayerJoinEvent, cancelled: &mut bool) -> EventResult {
+///     *cancelled = true; // cancel the event
 ///     EventResult::Continue
 /// }
 /// ```
@@ -84,10 +70,11 @@ pub fn steel_handler(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let fn_ret = &input_fn.sig.output;
     let fn_attrs = &input_fn.attrs;
 
-    if fn_args.len() != 1 {
+    if fn_args.len() != 2 {
         return syn::Error::new_spanned(
             fn_args,
-            "#[steel_handler] function must take exactly one argument: `event: &mut Event`",
+            "#[steel_handler] function must take exactly 2 arguments: \
+             `(event: &mut Event, cancelled: &mut bool)`",
         )
         .to_compile_error()
         .into();
@@ -105,13 +92,16 @@ pub fn steel_handler(_attr: TokenStream, item: TokenStream) -> TokenStream {
         })
         .collect();
 
+    let first = &arg_names[0];
+    let second = &arg_names[1];
+
     let output = quote! {
         #(#fn_attrs)*
         extern "C" fn #fn_name(#fn_args) #fn_ret {
             fn __inner(#fn_args) #fn_ret #fn_block
 
             match ::std::panic::catch_unwind(::std::panic::AssertUnwindSafe(|| {
-                __inner(#( #arg_names ),*)
+                __inner(#first, #second)
             })) {
                 Ok(__r) => __r,
                 Err(__e) => {

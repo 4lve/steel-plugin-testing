@@ -1,4 +1,4 @@
-use crate::{API_VERSION, AbiStr, CommandApi, CommandApiVtable, EventApi, EventApiVtable};
+use crate::{AbiStr, CommandApi, CommandApiVtable, EventApi, EventApiVtable};
 
 #[stabby::stabby]
 #[repr(u8)]
@@ -15,23 +15,32 @@ pub enum InitResult {
 /// Provides access to scoped API objects for registration.
 #[stabby::stabby]
 pub struct PluginContext {
-    pub api_version: u32,
     event_api: &'static EventApiVtable,
     command_api: &'static CommandApiVtable,
+    plugin_id: AbiStr<'static>,
 }
 
 impl PluginContext {
-    pub fn new(event_api: &'static EventApiVtable, command_api: &'static CommandApiVtable) -> Self {
+    pub fn new(
+        event_api: &'static EventApiVtable,
+        command_api: &'static CommandApiVtable,
+        plugin_id: AbiStr<'static>,
+    ) -> Self {
         Self {
-            api_version: API_VERSION,
             event_api,
             command_api,
+            plugin_id,
         }
     }
 
-    /// Access the event registration API.
+    /// Access the event registration and firing API.
     pub fn events(&self) -> EventApi<'_> {
-        EventApi::new(self.event_api)
+        EventApi::new(self.event_api, self.plugin_id.as_ref())
+    }
+
+    /// Get the static event API vtable for use outside of `init`.
+    pub fn event_vtable(&self) -> &'static EventApiVtable {
+        self.event_api
     }
 
     /// Access the command registration API.
@@ -47,11 +56,8 @@ impl PluginContext {
 /// `id` is a short machine-friendly identifier (e.g. `"ae2"`), used for
 /// dependency references, load ordering, and file paths.
 /// `name` is the human-readable display name (e.g. `"Applied Energistics 2"`).
-///
-/// Uses borrowed `Str<'static>` since metadata values are always string literals.
 #[stabby::stabby]
 pub struct PluginMetadata {
-    pub api_version: u32,
     pub id: AbiStr<'static>,
     pub name: AbiStr<'static>,
     pub version: AbiStr<'static>,
@@ -82,7 +88,6 @@ macro_rules! plugin_metadata {
         #[stabby::export]
         pub extern "C" fn steel_plugin_metadata() -> $crate::PluginMetadata {
             $crate::PluginMetadata {
-                api_version: $crate::API_VERSION,
                 id: $crate::AbiStr::new($id),
                 name: $crate::AbiStr::new($name),
                 version: $crate::AbiStr::new($version),

@@ -1,6 +1,6 @@
 use libloading::Library;
 use stabby::libloading::StabbyLibrary;
-use steel_api::{API_VERSION, InitResult, PluginContext, PluginInitFn, PluginMetadataFn};
+use steel_api::{AbiStr, InitResult, PluginContext, PluginInitFn, PluginMetadataFn};
 
 use crate::command::COMMAND_API;
 use crate::event::EVENT_API;
@@ -57,15 +57,6 @@ pub fn load_plugin(path: &std::path::Path) -> Option<LoadedPlugin> {
     let version = metadata.version.as_ref().to_string();
     println!("[Host] Found: {name} ({id}) v{version}");
 
-    // Version check
-    if metadata.api_version != API_VERSION {
-        eprintln!(
-            "[Host] {name} requires API v{}, but host has API v{API_VERSION}. Skipping.",
-            metadata.api_version
-        );
-        return None;
-    }
-
     // Load init function with full ABI verification.
     let init_fn = match unsafe { lib.get_stabbied::<PluginInitFn>(b"steel_plugin_init") } {
         Ok(f) => f,
@@ -75,8 +66,11 @@ pub fn load_plugin(path: &std::path::Path) -> Option<LoadedPlugin> {
         }
     };
 
+    // Leak the plugin ID so it lives for 'static — plugins are never unloaded.
+    let plugin_id: &'static str = Box::leak(id.clone().into_boxed_str());
+
     // Phase 2: init (phase 1 — init_registers — is not yet implemented)
-    let ctx = PluginContext::new(&EVENT_API, &COMMAND_API);
+    let ctx = PluginContext::new(&EVENT_API, &COMMAND_API, AbiStr::new(plugin_id));
     match (*init_fn)(ctx) {
         InitResult::Ok => println!("[Host] {name} initialized."),
         InitResult::Panic => {
