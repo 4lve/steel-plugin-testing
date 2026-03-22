@@ -1,0 +1,11 @@
+[package]
+name = "plugin"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+steel-api = { path = "../steel-api" }
+stabby = { version = "72.1.1", features = ["libloading"] }
