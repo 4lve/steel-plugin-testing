@@ -1,19 +1,66 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    ffi::OsString,
+    path::{Path, PathBuf},
+};
 
-#[stabby::import(name = "plugin_announcer")]
-extern "C" {
-    pub fn steel_plugin_new() -> stabby::opaque::RefMut<steel_api::Plugin>;
+use stabby::libloading::StabbyLibrary;
+use steel_api::PluginApi;
+
+struct LoadedPlugin {
+    plugin: stabby::opaque::RefMut<steel_api::Plugin>,
+    name: steel_api::PluginName,
+    on_server_start: steel_api::PluginOnServerStart,
+    on_player_join: steel_api::PluginOnPlayerJoin,
+    _library: libloading::Library,
 }
 
-#[stabby::import_interface(opaque = steel_api::Plugin, prefix = "steel_plugin", name = "plugin_announcer")]
-pub trait ImportedPluginApi {
-    extern "C" fn name(&self) -> stabby::str::Str<'static>;
-    extern "C" fn on_server_start(&mut self, host: steel_api::HostCoreRefMut, ticks: u64) -> u32;
+impl LoadedPlugin {
+    fn load(path: &Path) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        // SAFETY: Loading a dynamic library and resolving foreign symbols is inherently
+        // unsafe. Each symbol is checked by stabby before its function pointer is used,
+        // and the library is kept alive for at least as long as those pointers.
+        unsafe {
+            let library = libloading::Library::new(path)?;
+            let new = *library.get_stabbied::<steel_api::PluginNew>(b"steel_plugin_new")?;
+            let name = *library.get_stabbied::<steel_api::PluginName>(b"steel_plugin_name")?;
+            let on_server_start = *library
+                .get_stabbied::<steel_api::PluginOnServerStart>(b"steel_plugin_on_server_start")?;
+            let on_player_join = *library
+                .get_stabbied::<steel_api::PluginOnPlayerJoin>(b"steel_plugin_on_player_join")?;
+            let plugin = new();
+
+            Ok(Self {
+                plugin,
+                name,
+                on_server_start,
+                on_player_join,
+                _library: library,
+            })
+        }
+    }
+}
+
+impl steel_api::PluginApi for LoadedPlugin {
+    extern "C" fn name(&self) -> stabby::str::Str<'static> {
+        (self.name)(self.plugin.as_ref())
+    }
+
+    extern "C" fn on_server_start(&mut self, host: steel_api::HostCoreRefMut, ticks: u64) -> u32 {
+        (self.on_server_start)(self.plugin.reborrow(), host, ticks)
+    }
+
     extern "C" fn on_player_join(
         &mut self,
         host: steel_api::HostCoreRefMut,
         player: stabby::str::Str<'_>,
-    ) -> u32;
+    ) -> u32 {
+        // The generated import/export interface ABI erases argument lifetimes to
+        // 'static. The plugin call is synchronous, so this borrowed string cannot
+        // escape through the ABI-stable Str handle.
+        let player = unsafe { core::mem::transmute::<_, stabby::str::Str<'static>>(player) };
+        (self.on_player_join)(self.plugin.reborrow(), host, player)
+    }
 }
 
 #[derive(Default)]
@@ -78,9 +125,42 @@ fn bind_host(host: &mut HostState) -> steel_api::HostCoreRefMut {
     steel_host_core_interface_bind(host)
 }
 
-fn main() {
+fn plugin_path_from_args() -> PathBuf {
+    let mut args = std::env::args_os();
+    let program = args.next().unwrap_or_else(|| OsString::from("host"));
+    match (args.next(), args.next()) {
+        (Some(path), None) => PathBuf::from(path),
+        _ => {
+            eprintln!(
+                "usage: {} <path-to-plugin-dynamic-library>",
+                Path::new(&program)
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or("host")
+            );
+            eprintln!(
+                "example: cargo run -p host -- target/debug/deps/{}",
+                plugin_library_hint()
+            );
+            std::process::exit(2);
+        }
+    }
+}
+
+fn plugin_library_hint() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "your_plugin.dll"
+    } else if cfg!(target_os = "macos") {
+        "libyour_plugin.dylib"
+    } else {
+        "libyour_plugin.so"
+    }
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let plugin_path = plugin_path_from_args();
     let mut host = HostState::default();
-    let mut plugin = steel_plugin_new();
+    let mut plugin = LoadedPlugin::load(&plugin_path)?;
 
     println!("loaded plugin: {}", plugin.name());
 
@@ -93,4 +173,6 @@ fn main() {
 
     println!("host counters after plugin callbacks: {:?}", host.counters);
     println!("host log lines: {:?}", host.log_lines);
+
+    Ok(())
 }

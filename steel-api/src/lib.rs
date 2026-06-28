@@ -35,3 +35,14 @@ pub trait PluginApi {
         player: stabby::str::Str<'_>,
     ) -> u32;
 }
+
+pub type PluginNew = extern "C" fn() -> stabby::opaque::RefMut<Plugin>;
+pub type PluginName = extern "C" fn(stabby::opaque::Ref<Plugin>) -> stabby::str::Str<'static>;
+pub type PluginOnServerStart =
+    extern "C" fn(stabby::opaque::RefMut<Plugin>, HostCoreRefMut, u64) -> u32;
+
+// `#[stabby::export_interface]` erases borrowed argument lifetimes in exported
+// symbol signatures. `get_stabbied` needs this concrete ABI type, while the
+// higher-level `PluginApi` trait can still expose `Str<'_>` to callers.
+pub type PluginOnPlayerJoin =
+    extern "C" fn(stabby::opaque::RefMut<Plugin>, HostCoreRefMut, stabby::str::Str<'static>) -> u32;
