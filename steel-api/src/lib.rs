@@ -1,32 +1,41 @@
-//! ABI-stable plugin API for Steel.
-//!
-//! Plugin developers depend on this crate to write plugins.
-//! The host (server) uses this crate to define the ABI boundary.
+#[stabby::opaque(module = "steel::plugin")]
+pub struct Plugin;
 
-pub use steel_api_macros::{steel_command, steel_handler, steel_plugin};
+#[stabby::opaque(module = "steel::host")]
+pub struct Host;
 
-// Re-exports for plugin convenience and macro use.
-pub use stabby::alloc::string::String as AbiString;
-pub use stabby::str::Str as AbiStr;
+#[stabby::interface(opaque = Host, prefix = "steel_host")]
+pub trait HostApi {
+    extern "C" fn log(&mut self, message: stabby::str::Str<'_>);
+    extern "C" fn counter_len(&self) -> u64;
+    extern "C" fn get_counter(&self, key: stabby::str::Str<'_>) -> stabby::option::Option<u32>;
+    extern "C" fn insert_counter(
+        &mut self,
+        key: stabby::str::Str<'_>,
+        value: u32,
+    ) -> stabby::option::Option<u32>;
+    extern "C" fn increment_counter(&mut self, key: stabby::str::Str<'_>, amount: u32) -> u32;
+}
 
-mod command;
-mod event;
-mod identifier;
-mod plugin;
+#[stabby::interface(opaque = Host, prefix = "steel_host_core", resolver)]
+pub trait HostCore {
+    extern "C" fn query_interface(
+        &mut self,
+        interface_id: u64,
+        expected: &'static stabby::report::TypeReport,
+    ) -> stabby::option::Option<stabby::opaque::ErasedInterfaceRefMut<Host>>;
+}
 
-pub use command::*;
-pub use event::*;
-pub use identifier::*;
-pub use plugin::*;
-
-/// Log a caught panic payload. Used by proc macros — not intended for direct use.
-pub fn log_panic(context: &str, e: &(dyn std::any::Any + Send)) {
-    let msg = if let Some(s) = e.downcast_ref::<&str>() {
-        s
-    } else if let Some(s) = e.downcast_ref::<String>() {
-        s.as_str()
-    } else {
-        "unknown panic"
-    };
-    eprintln!("[Steel] {context} panicked: {msg}");
+pub trait PluginApi {
+    extern "C" fn name(&self) -> stabby::str::Str<'static>;
+    extern "C" fn on_server_start(
+        &mut self,
+        host: stabby::opaque::InterfaceRefMut<Host, HostCoreVTable>,
+        ticks: u64,
+    ) -> u32;
+    extern "C" fn on_player_join(
+        &mut self,
+        host: stabby::opaque::InterfaceRefMut<Host, HostCoreVTable>,
+        player: stabby::str::Str<'_>,
+    ) -> u32;
 }

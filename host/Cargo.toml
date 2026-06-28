@@ -1,9 +1,9 @@
 [package]
 name = "host"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
+stabby = { workspace = true, features = ["std", "libloading"] }
 steel-api = { path = "../steel-api" }
-stabby = { version = "72.1.1", features = ["libloading"] }
-libloading = "0.8"
+plugin-announcer = { path = "../plugin-announcer" }

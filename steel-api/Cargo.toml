@@ -1,9 +1,7 @@
 [package]
 name = "steel-api"
 version = "0.1.0"
-edition = "2024"
-license = "MIT"
+edition = "2021"
 
 [dependencies]
-stabby = { version = "72.1.1", features = ["libloading"] }
-steel-api-macros = { path = "../steel-api-macros" }
+stabby = { workspace = true, features = ["std"] }

@@ -1,3 +1,6 @@
 [workspace]
-members = ["steel-api", "steel-api-macros", "host", "plugin", "shared-events", "plugin-announcer"]
+members = ["steel-api", "plugin-announcer", "host"]
 resolver = "2"
+
+[workspace.dependencies]
+stabby = { path = "../stabby/stabby" }

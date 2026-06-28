@@ -1,12 +1,11 @@
 [package]
 name = "plugin-announcer"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
+stabby = { workspace = true, features = ["std"] }
 steel-api = { path = "../steel-api" }
-shared-events = { path = "../shared-events" }
-stabby = { version = "72.1.1", features = ["libloading"] }
