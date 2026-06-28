@@ -8,14 +8,10 @@ extern "C" {
 #[stabby::import_interface(opaque = steel_api::Plugin, prefix = "steel_plugin", name = "plugin_announcer")]
 pub trait ImportedPluginApi {
     extern "C" fn name(&self) -> stabby::str::Str<'static>;
-    extern "C" fn on_server_start(
-        &mut self,
-        host: stabby::opaque::InterfaceRefMut<steel_api::Host, steel_api::HostCoreVTable>,
-        ticks: u64,
-    ) -> u32;
+    extern "C" fn on_server_start(&mut self, host: steel_api::HostCoreRefMut, ticks: u64) -> u32;
     extern "C" fn on_player_join(
         &mut self,
-        host: stabby::opaque::InterfaceRefMut<steel_api::Host, steel_api::HostCoreVTable>,
+        host: steel_api::HostCoreRefMut,
         player: stabby::str::Str<'_>,
     ) -> u32;
 }
@@ -77,9 +73,7 @@ impl steel_api::HostCore for HostState {
     }
 }
 
-fn bind_host(
-    host: &mut HostState,
-) -> stabby::opaque::InterfaceRefMut<steel_api::Host, steel_api::HostCoreVTable> {
+fn bind_host(host: &mut HostState) -> steel_api::HostCoreRefMut {
     let host = unsafe { stabby::opaque::RefMut::<steel_api::Host>::from_mut(host) };
     steel_host_core_interface_bind(host)
 }

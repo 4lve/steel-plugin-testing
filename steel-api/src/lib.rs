@@ -28,14 +28,10 @@ pub trait HostCore {
 
 pub trait PluginApi {
     extern "C" fn name(&self) -> stabby::str::Str<'static>;
-    extern "C" fn on_server_start(
-        &mut self,
-        host: stabby::opaque::InterfaceRefMut<Host, HostCoreVTable>,
-        ticks: u64,
-    ) -> u32;
+    extern "C" fn on_server_start(&mut self, host: HostCoreRefMut, ticks: u64) -> u32;
     extern "C" fn on_player_join(
         &mut self,
-        host: stabby::opaque::InterfaceRefMut<Host, HostCoreVTable>,
+        host: HostCoreRefMut,
         player: stabby::str::Str<'_>,
     ) -> u32;
 }

@@ -21,15 +21,13 @@ impl steel_api::PluginApi for AnnouncerPlugin {
 
     extern "C" fn on_server_start(
         &mut self,
-        mut host: stabby::opaque::InterfaceRefMut<steel_api::Host, steel_api::HostCoreVTable>,
+        mut host: steel_api::HostCoreRefMut,
         ticks: u64,
     ) -> u32 {
-        use steel_api::{HostApi, HostCoreInterfaceResolver};
+        use steel_api::{HostApi, HostApiInterfaceExt};
 
         self.starts_seen = self.starts_seen.saturating_add(1);
-        let mut host = host
-            .resolve_interface::<steel_api::HostApiVTable>()
-            .unwrap();
+        let mut host = host.resolve_host_api().unwrap();
         host.log(stabby::str::Str::new("announcer observed server start"));
         let host_starts = host.increment_counter(stabby::str::Str::new("server_starts"), 1);
 
@@ -42,15 +40,13 @@ impl steel_api::PluginApi for AnnouncerPlugin {
 
     extern "C" fn on_player_join(
         &mut self,
-        mut host: stabby::opaque::InterfaceRefMut<steel_api::Host, steel_api::HostCoreVTable>,
+        mut host: steel_api::HostCoreRefMut,
         player: stabby::str::Str<'_>,
     ) -> u32 {
-        use steel_api::{HostApi, HostCoreInterfaceResolver};
+        use steel_api::{HostApi, HostApiInterfaceExt};
 
         self.joins_seen = self.joins_seen.saturating_add(1);
-        let mut host = host
-            .resolve_interface::<steel_api::HostApiVTable>()
-            .unwrap();
+        let mut host = host.resolve_host_api().unwrap();
         host.log(stabby::str::Str::new("announcer observed player join"));
         let player_joins = host.increment_counter(player, 1);
         let total_joins = host.increment_counter(stabby::str::Str::new("player_joins"), 1);
